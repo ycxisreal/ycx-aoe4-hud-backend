@@ -32,4 +32,6 @@ def preprocess_roi(image: np.ndarray, kind: str) -> Tuple[np.ndarray, np.ndarray
 
     kernel = np.ones((2, 2), np.uint8)
     denoise = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    if kind != "timer":
+        denoise = cv2.morphologyEx(denoise, cv2.MORPH_CLOSE, kernel, iterations=1)
     return denoise, gray
