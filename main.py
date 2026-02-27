@@ -184,6 +184,8 @@ class BackendApp:
             roi.rect.y = int(round(roi.rect.y * scale))
             roi.rect.w = int(round(roi.rect.w * scale))
             roi.rect.h = int(round(roi.rect.h * scale))
+            roi.rect.x += 2
+            roi.rect.y += 2
         config.screen.width = int(round(config.screen.width * scale))
         config.screen.height = int(round(config.screen.height * scale))
         self.logger.info("已应用系统缩放比例: %.2f", scale)
