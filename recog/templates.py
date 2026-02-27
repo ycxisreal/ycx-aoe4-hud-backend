@@ -14,6 +14,7 @@ import numpy as np
 class TemplateSet:
     name: str
     templates: Dict[str, np.ndarray]
+    features: Dict[str, np.ndarray]
     size: Tuple[int, int]
 
 
@@ -27,6 +28,7 @@ class TemplateStore:
     def load(self, name: str, path: str, size: Tuple[int, int] = (32, 32)) -> bool:
         template_dir = Path(path)
         templates: Dict[str, np.ndarray] = {}
+        features: Dict[str, np.ndarray] = {}
         for key in [str(i) for i in range(10)] + ["colon"]:
             file_path = template_dir / f"{key}.png"
             if not file_path.exists():
@@ -34,10 +36,12 @@ class TemplateStore:
             image = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
             if image is None:
                 continue
-            templates[key] = normalize_char(image, size)
+            normalized = normalize_char(image, size)
+            templates[key] = normalized
+            features[key] = compute_hog(normalized, size)
         if not templates:
             return False
-        template_set = TemplateSet(name=name, templates=templates, size=size)
+        template_set = TemplateSet(name=name, templates=templates, features=features, size=size)
         self.sets[name] = template_set
         if self.current is None:
             self.current = template_set
@@ -83,3 +87,22 @@ def normalize_char(image: np.ndarray, size: Tuple[int, int]) -> np.ndarray:
     y = (target_h - new_h) // 2
     canvas[y : y + new_h, x : x + new_w] = resized
     return canvas
+
+
+# 计算 HOG 特征
+def compute_hog(image: np.ndarray, size: Tuple[int, int]) -> np.ndarray:
+    """
+    HOG 特征说明：
+    1. 输入必须为固定大小灰度图
+    2. 返回一维特征向量
+    """
+    w, h = size
+    hog = cv2.HOGDescriptor(
+        _winSize=(w, h),
+        _blockSize=(16, 16),
+        _blockStride=(8, 8),
+        _cellSize=(8, 8),
+        _nbins=9,
+    )
+    feat = hog.compute(image)
+    return feat.flatten()

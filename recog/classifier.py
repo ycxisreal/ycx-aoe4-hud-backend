@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from recog.templates import TemplateSet, normalize_char
+from recog.templates import TemplateSet, compute_hog, normalize_char
 
 
 # 分类单个字符图像
@@ -24,19 +24,40 @@ def classify_char(char_image: np.ndarray, template_set: TemplateSet) -> Dict[str
     best_char = None
     best_score = -1.0
     second_score = -1.0
-    for key, tmpl in template_set.templates.items():
-        score = _corr_score(normalized, tmpl)
+    if template_set.features:
+        feat = compute_hog(normalized, template_set.size)
+        for key, tmpl_feat in template_set.features.items():
+            score = _cosine_score(feat, tmpl_feat)
+            if score > best_score:
+                second_score = best_score
+                best_score = score
+                best_char = key
+            elif score > second_score:
+                second_score = score
+    else:
+        for key, tmpl in template_set.templates.items():
+            score = _corr_score(normalized, tmpl)
+            if score > best_score:
+                second_score = best_score
+                best_score = score
+                best_char = key
+            elif score > second_score:
+                second_score = score
+    if second_score < 0:
+        second_score = 0.0
+    return {"char": best_char, "score": float(best_score), "second_score": float(second_score)}
+
+
+# 余弦相似度
+def _cosine_score(vec: np.ndarray, tmpl: np.ndarray) -> float:
+    denom = (np.linalg.norm(vec) * np.linalg.norm(tmpl)) + 1e-6
+    return float(np.dot(vec, tmpl) / denom)
         if score > best_score:
             second_score = best_score
             best_score = score
             best_char = key
         elif score > second_score:
             second_score = score
-    if second_score < 0:
-        second_score = 0.0
-    return {"char": best_char, "score": float(best_score), "second_score": float(second_score)}
-
-
 # 相关系数评分
 def _corr_score(image: np.ndarray, template: np.ndarray) -> float:
     image_f = image.astype(np.float32)
