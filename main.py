@@ -105,6 +105,7 @@ class BackendApp:
         self.context.running = True
         if self.capture_task is None or self.capture_task.done():
             self.capture_task = asyncio.create_task(self._capture_loop())
+            self.logger.info("识别循环任务已创建")
         self.state.update("running")
         await self._publish_status()
         self.logger.info("识别已启动")
@@ -192,49 +193,55 @@ class BackendApp:
 
     # 捕获循环
     async def _capture_loop(self) -> None:
+        self.logger.info("识别循环开始运行")
         while True:
-            if not self.context.running or self.context.config is None:
-                await asyncio.sleep(0.2)
-                continue
-            if not self.context.config.recognition.enabled:
-                await asyncio.sleep(0.2)
-                continue
+            try:
+                if not self.context.running or self.context.config is None:
+                    await asyncio.sleep(0.2)
+                    continue
+                if not self.context.config.recognition.enabled:
+                    self.logger.warning("识别未启用：recognition.enabled=false")
+                    await asyncio.sleep(0.5)
+                    continue
 
-            hz = max(1, self.context.config.recognition.hz)
-            frame = self.capture_manager.capture()
-            ts = int(asyncio.get_running_loop().time() * 1000)
-            if frame is None:
-                self.fail_count += 1
-                if self.fail_count >= 10:
-                    self.context.quality_ok = False
-                    self.context.quality_reason = "capture_failed"
-                    self.logger.warning("抓屏连续失败次数: %d", self.fail_count)
+                hz = max(1, self.context.config.recognition.hz)
+                frame = self.capture_manager.capture()
+                ts = int(asyncio.get_running_loop().time() * 1000)
+                if frame is None:
+                    self.fail_count += 1
+                    if self.fail_count >= 10:
+                        self.context.quality_ok = False
+                        self.context.quality_reason = "capture_failed"
+                        self.logger.warning("抓屏连续失败次数: %d", self.fail_count)
+                    await asyncio.sleep(1.0 / hz)
+                    continue
+
+                self.fail_count = 0
+                self._dump_debug_frames(frame, ts)
+                results = self.pipeline.process(frame, self.context.config.rois)
+                fields = _map_fields(results)
+                stable_fields = _smooth_fields(self.smoother, fields)
+                quality = self.validator.validate(stable_fields)
+                self.context.quality_ok = quality["ok"]
+                self.context.quality_reason = quality["reason"]
+                self._log_timer_invalid(results, stable_fields, ts, quality["reason"])
+
+                data_payload = {
+                    "fields": stable_fields,
+                    "frameTs": ts,
+                    "quality": {"ok": self.context.quality_ok, "reason": self.context.quality_reason},
+                }
+                self.logger.info(
+                    "已发送识别数据，quality=%s, reason=%s",
+                    self.context.quality_ok,
+                    self.context.quality_reason,
+                )
+                await self.ws.broadcast(make_data(data_payload))
+                await self._handle_alerts(stable_fields, ts)
                 await asyncio.sleep(1.0 / hz)
-                continue
-
-            self.fail_count = 0
-            self._dump_debug_frames(frame, ts)
-            results = self.pipeline.process(frame, self.context.config.rois)
-            fields = _map_fields(results)
-            stable_fields = _smooth_fields(self.smoother, fields)
-            quality = self.validator.validate(stable_fields)
-            self.context.quality_ok = quality["ok"]
-            self.context.quality_reason = quality["reason"]
-            self._log_timer_invalid(results, stable_fields, ts, quality["reason"])
-
-            data_payload = {
-                "fields": stable_fields,
-                "frameTs": ts,
-                "quality": {"ok": self.context.quality_ok, "reason": self.context.quality_reason},
-            }
-            self.logger.info(
-                "已发送识别数据，quality=%s, reason=%s",
-                self.context.quality_ok,
-                self.context.quality_reason,
-            )
-            await self.ws.broadcast(make_data(data_payload))
-            await self._handle_alerts(stable_fields, ts)
-            await asyncio.sleep(1.0 / hz)
+            except Exception as exc:
+                self.logger.error("识别循环异常: %s", str(exc))
+                await asyncio.sleep(0.5)
 
     # 处理提醒事件
     async def _handle_alerts(self, fields: Dict[str, Any], ts: int) -> None:
