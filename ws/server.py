@@ -32,14 +32,14 @@ class WsServer:
     async def start(self, on_message: MessageHandler) -> None:
         self.on_message = on_message
         self.server = await websockets.serve(self._handler, self.host, self.port)
-        self.logger.info("ws server started %s:%s", self.host, self.port)
+        self.logger.info("WS 服务启动 %s:%s", self.host, self.port)
 
     # 停止服务端
     async def stop(self) -> None:
         if self.server is not None:
             self.server.close()
             await self.server.wait_closed()
-            self.logger.info("ws server stopped")
+            self.logger.info("WS 服务已停止")
 
     # 广播消息
     async def broadcast(self, payload: Dict[str, Any]) -> None:
@@ -47,18 +47,18 @@ class WsServer:
             return
         data = json.dumps(payload, ensure_ascii=False)
         await asyncio.gather(*(client.send(data) for client in list(self.clients)), return_exceptions=True)
-        self.logger.debug("ws broadcast type=%s", payload.get("type"))
+        self.logger.debug("WS 广播类型=%s", payload.get("type"))
 
     # 发送单个消息
     async def send(self, client: WebSocketServerProtocol, payload: Dict[str, Any]) -> None:
         data = json.dumps(payload, ensure_ascii=False)
         await client.send(data)
-        self.logger.debug("ws send type=%s", payload.get("type"))
+        self.logger.debug("WS 发送类型=%s", payload.get("type"))
 
     # 内部处理连接
     async def _handler(self, websocket: WebSocketServerProtocol) -> None:
         self.clients.add(websocket)
-        self.logger.info("ws client connected, total=%d", len(self.clients))
+        self.logger.info("WS 客户端连接，总数=%d", len(self.clients))
         try:
             status = make_status(self.state.state, self.state.message, self.state.details)
             await self.send(websocket, status)
@@ -71,4 +71,4 @@ class WsServer:
                     await self.on_message(data, websocket)
         finally:
             self.clients.discard(websocket)
-            self.logger.info("ws client disconnected, total=%d", len(self.clients))
+            self.logger.info("WS 客户端断开，总数=%d", len(self.clients))

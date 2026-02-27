@@ -21,7 +21,7 @@ class DxcamProvider:
             import dxcam
         except Exception:
             self.camera = None
-            self.logger.warning("dxcam import failed")
+            self.logger.warning("dxcam 导入失败")
             return False
 
         try:
@@ -29,7 +29,7 @@ class DxcamProvider:
             return self.camera is not None
         except Exception:
             self.camera = None
-            self.logger.error("dxcam create failed")
+            self.logger.error("dxcam 创建失败")
             return False
 
     # 抓取当前帧
@@ -39,9 +39,9 @@ class DxcamProvider:
         try:
             frame = self.camera.grab()
             if frame is None:
-                self.logger.debug("dxcam grab returned None")
+                self.logger.debug("dxcam 抓屏返回空帧")
                 return None
             return frame
         except Exception:
-            self.logger.warning("dxcam grab failed")
+            self.logger.warning("dxcam 抓屏失败")
             return None
