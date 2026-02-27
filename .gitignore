@@ -36,3 +36,7 @@ Desktop.ini
 debug/
 output/
 tmp/
+doc
+.idea
+PROJECT_STRUCTURE.md
+AGENTS.md
