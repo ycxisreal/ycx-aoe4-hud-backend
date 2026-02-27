@@ -27,6 +27,7 @@ aoe4-hud/
     segment.py
     templates.py
     classifier.py
+    ocr.py
     pipeline.py
     smoothing.py
     validation.py
@@ -97,7 +98,8 @@ WebSocket 通信模块，包含：
 - `preprocess.py`：ROI 预处理（灰度、二值化、反色、去噪）
 - `segment.py`：字符切分（连通域过滤、冒号合并）
 - `templates.py`：模板集加载与归一化
-- `classifier.py`：HOG 特征 + 轻量 KNN 分类
+- `classifier.py`：HOG 特征 + 轻量 KNN 分类（备用）
+- `ocr.py`：Tesseract OCR 识别
 - `pipeline.py`：流水线组合（裁剪 → 预处理 → 切分 → 分类 → 解析）
 - `smoothing.py`：多帧稳定化（投票）
 - `validation.py`：合法性校验与质量检测

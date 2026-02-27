@@ -5,3 +5,4 @@ mss
 websockets
 pydantic
 pyttsx3
+pytesseract
