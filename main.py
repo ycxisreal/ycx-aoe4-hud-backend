@@ -55,6 +55,7 @@ class BackendApp:
             self.logger.warning("ws message parse failed")
             return
         self.logger.info("ws message received: %s", msg.type)
+        self.logger.debug("ws payload: %s", msg.payload)
         if msg.type == "CONFIG_SET":
             await self._handle_config(msg.payload)
         elif msg.type in ("START", "RECOG_START", "OCR_START"):
@@ -74,6 +75,9 @@ class BackendApp:
             self.logger.error("config invalid: %s", str(exc))
             return
         self.context.config = config
+        self.logger.info("config rois=%d", len(config.rois))
+        if config.rois:
+            self.logger.info("config roi[0]=%s", config.rois[0].dict())
         self.capture_manager.initialize(display_id=config.screen.displayId)
         self._load_templates(config)
         self.pipeline.update_kind_map(self._build_kind_map(config))
