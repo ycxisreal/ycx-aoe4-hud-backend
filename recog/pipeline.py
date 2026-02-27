@@ -7,26 +7,20 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from recog.ocr import ocr_read
-from recog.templates import TemplateStore
 
 
 class RecognizePipeline:
     # 初始化流水线
-    def __init__(self, template_store: TemplateStore) -> None:
-        self.template_store = template_store
-        self.kind_map: Dict[str, str] = {}
-
-    # 更新模板映射
-    def update_kind_map(self, kind_map: Dict[str, str]) -> None:
-        self.kind_map = kind_map
+    def __init__(self) -> None:
+        pass
 
     # 处理一帧并返回识别结果
     def process(self, frame: np.ndarray, rois) -> Dict[str, Any]:
         """
         流水线说明：
-        1. ROI 裁剪并预处理
-        2. 字符切分与逐字符分类
-        3. 拼接与字段解析
+        1. ROI 裁剪
+        2. OCR 识别
+        3. 字段解析
         """
         results: Dict[str, Any] = {}
         for roi in rois:
@@ -72,12 +66,3 @@ def _valid_timer(text: str) -> bool:
         return False
     return True
 
-
-# 保留接口以兼容旧配置
-def _select_template_name(kind: str, kind_map: Dict[str, str]) -> Optional[str]:
-    if kind in kind_map:
-        return kind_map[kind]
-    for pattern, name in kind_map.items():
-        if pattern.endswith("*") and kind.startswith(pattern[:-1]):
-            return name
-    return kind_map.get("default")

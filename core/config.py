@@ -2,7 +2,7 @@
 配置模型定义。
 """
 
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -39,19 +39,6 @@ class RecognitionConfig(BaseModel):
     hz: int = Field(default=2, ge=1, le=10)
 
 
-class TemplatesConfig(BaseModel):
-    setName: Optional[str] = None
-    path: Optional[str] = None
-    autoScale: Optional[bool] = None
-    sets: Optional[Dict[str, str]] = None
-    kindMap: Optional[Dict[str, str]] = None
-
-
-class DebugConfig(BaseModel):
-    saveRoiFrames: Optional[bool] = False
-    saveDir: Optional[str] = None
-
-
 class TtsConfig(BaseModel):
     enabled: bool = True
     rate: Optional[int] = None
@@ -63,8 +50,6 @@ class ConfigSetPayload(BaseModel):
     screen: ScreenInfo
     rois: List[Roi]
     recognition: RecognitionConfig
-    templates: Optional[TemplatesConfig] = None
-    debug: Optional[DebugConfig] = None
     tts: Optional[TtsConfig] = None
 
 

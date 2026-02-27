@@ -4,7 +4,6 @@ AoE4 HUD 后端入口。
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from analysis.engine import RuleEngine
@@ -13,7 +12,6 @@ from core.config import ConfigSetPayload, WsMessage
 from core.state import BackendState, RuntimeContext
 from recog.pipeline import RecognizePipeline
 from recog.smoothing import FieldSmoother
-from recog.templates import TemplateStore
 from recog.validation import FieldValidator
 from tts.speaker import TtsSpeaker
 from utils.logging import setup_logging
@@ -28,8 +26,7 @@ class BackendApp:
         self.logger = logging.getLogger("backend.app")
         self.state = BackendState(state="starting")
         self.context = RuntimeContext()
-        self.template_store = TemplateStore()
-        self.pipeline = RecognizePipeline(self.template_store)
+        self.pipeline = RecognizePipeline()
         self.smoother = FieldSmoother(window_size=7)
         self.validator = FieldValidator()
         self.rule_engine = RuleEngine()
@@ -82,13 +79,6 @@ class BackendApp:
         if config.rois:
             self.logger.info("ROI 示例: %s", config.rois[0].dict())
         self.capture_manager.initialize(display_id=config.screen.displayId)
-        self._load_templates(config)
-        self.pipeline.update_kind_map(self._build_kind_map(config))
-        if not self.template_store.is_ready():
-            self.state.update("error", message="templates_missing", details={"path": self._template_path(config)})
-            await self._publish_status()
-            self.logger.error("模板集缺失: %s", self._template_path(config))
-            return
         if config.tts:
             self.tts.configure(rate=config.tts.rate, volume=config.tts.volume)
         self.state.update("ready")
@@ -122,55 +112,7 @@ class BackendApp:
         status = make_status(self.state.state, self.state.message, self.state.details)
         await self.ws.broadcast(status)
 
-    # 加载模板集
-    def _load_templates(self, config: ConfigSetPayload) -> None:
-        template_config = config.templates
-        if template_config and template_config.sets:
-            for name, raw_path in template_config.sets.items():
-                path = self._resolve_path(raw_path)
-                self.template_store.load(name, path)
-                self.logger.info("模板集加载: %s -> %s", name, path)
-            return
-
-        if template_config and (template_config.path or template_config.setName):
-            path = self._template_path(config)
-            set_name = template_config.setName if template_config and template_config.setName else "hud_normal"
-            self.template_store.load(set_name, path)
-            self.logger.info("模板集加载: %s -> %s", set_name, path)
-            return
-
-        default_sets = ["hud_normal", "res_bold"]
-        for name in default_sets:
-            path = self._resolve_path(str(Path("templates") / name))
-            self.template_store.load(name, path)
-            self.logger.info("模板集加载: %s -> %s", name, path)
-
-    # 计算模板路径
-    def _template_path(self, config: ConfigSetPayload) -> str:
-        template_config = config.templates
-        if template_config and template_config.path:
-            path = Path(template_config.path)
-        else:
-            name = template_config.setName if template_config and template_config.setName else "hud_normal"
-            path = Path("templates") / name
-        return self._resolve_path(str(path))
-
-    # 解析为绝对路径
-    def _resolve_path(self, raw_path: str) -> str:
-        path = Path(raw_path)
-        if not path.is_absolute():
-            path = Path.cwd() / path
-        return str(path)
-
-    # 构建模板映射
-    def _build_kind_map(self, config: ConfigSetPayload) -> Dict[str, str]:
-        template_config = config.templates
-        if template_config and template_config.kindMap:
-            return template_config.kindMap
-        return {
-            "res_*": "res_bold",
-            "default": "hud_normal",
-        }
+    # OCR 路线不再加载模板集
 
     # 根据系统缩放修正 ROI
     def _apply_dpi_scale(self, config: ConfigSetPayload) -> None:
@@ -217,8 +159,7 @@ class BackendApp:
                     continue
 
                 self.fail_count = 0
-                self._dump_debug_frames(frame, ts)
-                results = self.pipeline.process(frame, self.context.config.rois)
+            results = self.pipeline.process(frame, self.context.config.rois)
                 fields = _map_fields(results)
                 stable_fields = _smooth_fields(self.smoother, fields)
                 quality = self.validator.validate(stable_fields)
@@ -277,20 +218,6 @@ class BackendApp:
             box_count = raw_timer.get("boxCount")
         self.logger.info("计时器识别异常 raw=%s stable=%s boxCount=%s", raw_timer, stable_timer, box_count)
 
-    # 调试帧保存
-    def _dump_debug_frames(self, frame, ts: int) -> None:
-        if self.context.config is None:
-            return
-        from utils.debug_dump import dump_image
-
-        if getattr(self, "_roi_dumped_once", False):
-            return
-        save_dir = "debug"
-        for roi in self.context.config.rois:
-            cropped = _crop_frame(frame, roi.rect)
-            filename = f"{roi.kind}_{roi.id}_{ts}.png"
-            dump_image(cropped, Path(save_dir) / filename)
-        self._roi_dumped_once = True
 
 
 
@@ -318,13 +245,6 @@ def _strip_meta(value: Any) -> Any:
     return {"value": value.get("value"), "conf": value.get("conf", 0.0)}
 
 
-# 裁剪 ROI 区域
-def _crop_frame(frame, rect):
-    x = max(0, rect.x)
-    y = max(0, rect.y)
-    w = max(1, rect.w)
-    h = max(1, rect.h)
-    return frame[y : y + h, x : x + w]
 
 
 # 稳定化字段
