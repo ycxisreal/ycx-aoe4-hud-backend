@@ -52,12 +52,6 @@ def classify_char(char_image: np.ndarray, template_set: TemplateSet) -> Dict[str
 def _cosine_score(vec: np.ndarray, tmpl: np.ndarray) -> float:
     denom = (np.linalg.norm(vec) * np.linalg.norm(tmpl)) + 1e-6
     return float(np.dot(vec, tmpl) / denom)
-        if score > best_score:
-            second_score = best_score
-            best_score = score
-            best_char = key
-        elif score > second_score:
-            second_score = score
 # 相关系数评分
 def _corr_score(image: np.ndarray, template: np.ndarray) -> float:
     image_f = image.astype(np.float32)
