@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -15,6 +15,8 @@ class TemplateSet:
     name: str
     templates: Dict[str, np.ndarray]
     features: Dict[str, np.ndarray]
+    samples: np.ndarray
+    labels: List[str]
     size: Tuple[int, int]
 
 
@@ -29,6 +31,8 @@ class TemplateStore:
         template_dir = Path(path)
         templates: Dict[str, np.ndarray] = {}
         features: Dict[str, np.ndarray] = {}
+        sample_list: List[np.ndarray] = []
+        label_list: List[str] = []
         for key in [str(i) for i in range(10)] + ["colon"]:
             file_path = template_dir / f"{key}.png"
             if not file_path.exists():
@@ -39,9 +43,21 @@ class TemplateStore:
             normalized = normalize_char(image, size)
             templates[key] = normalized
             features[key] = compute_hog(normalized, size)
+            augmented = augment_images(normalized)
+            for item in augmented:
+                sample_list.append(compute_hog(item, size))
+                label_list.append(key)
         if not templates:
             return False
-        template_set = TemplateSet(name=name, templates=templates, features=features, size=size)
+        samples = np.stack(sample_list, axis=0) if sample_list else np.zeros((0, 1), dtype=np.float32)
+        template_set = TemplateSet(
+            name=name,
+            templates=templates,
+            features=features,
+            samples=samples,
+            labels=label_list,
+            size=size,
+        )
         self.sets[name] = template_set
         if self.current is None:
             self.current = template_set
@@ -106,3 +122,32 @@ def compute_hog(image: np.ndarray, size: Tuple[int, int]) -> np.ndarray:
     )
     feat = hog.compute(image)
     return feat.flatten()
+
+
+# 模板增强生成
+def augment_images(image: np.ndarray) -> List[np.ndarray]:
+    """
+    增强说明：
+    1. 轻微平移与缩放
+    2. 轻度膨胀/腐蚀
+    3. 轻度模糊
+    """
+    h, w = image.shape[:2]
+    variants: List[np.ndarray] = [image]
+
+    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        mat = np.float32([[1, 0, dx], [0, 1, dy]])
+        shifted = cv2.warpAffine(image, mat, (w, h), borderValue=0)
+        variants.append(shifted)
+
+    for scale in [0.9, 1.0, 1.1]:
+        mat = cv2.getRotationMatrix2D((w / 2, h / 2), 0, scale)
+        scaled = cv2.warpAffine(image, mat, (w, h), borderValue=0)
+        variants.append(scaled)
+
+    kernel = np.ones((2, 2), np.uint8)
+    variants.append(cv2.dilate(image, kernel, iterations=1))
+    variants.append(cv2.erode(image, kernel, iterations=1))
+    variants.append(cv2.GaussianBlur(image, (3, 3), 0))
+
+    return variants

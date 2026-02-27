@@ -41,6 +41,7 @@ aoe4-hud/
     __init__.py
     logging.py
     debug_dump.py
+    dpi.py
   templates/
     hud_normal/
       README.txt
@@ -49,6 +50,7 @@ aoe4-hud/
   doc/
     后端初步项目文档.md
     后端接口文档.md
+    日志输出位置.md
 ```
 
 ## 模块说明
@@ -95,7 +97,7 @@ WebSocket 通信模块，包含：
 - `preprocess.py`：ROI 预处理（灰度、二值化、反色、去噪）
 - `segment.py`：字符切分（连通域过滤、冒号合并）
 - `templates.py`：模板集加载与归一化
-- `classifier.py`：模板匹配与置信度计算
+- `classifier.py`：HOG 特征 + 轻量 KNN 分类
 - `pipeline.py`：流水线组合（裁剪 → 预处理 → 切分 → 分类 → 解析）
 - `smoothing.py`：多帧稳定化（投票）
 - `validation.py`：合法性校验与质量检测
@@ -116,6 +118,7 @@ WebSocket 通信模块，包含：
 通用工具模块，包含：
 - `logging.py`：日志初始化
 - `debug_dump.py`：调试输出与图像保存
+- `dpi.py`：系统缩放读取
 
 ### `templates/`
 
