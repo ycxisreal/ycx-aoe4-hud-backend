@@ -114,11 +114,11 @@ class BackendApp:
 
         if template_config and (template_config.path or template_config.setName):
             path = self._template_path(config)
-            set_name = template_config.setName if template_config and template_config.setName else "default_100"
+            set_name = template_config.setName if template_config and template_config.setName else "hud_normal"
             self.template_store.load(set_name, path)
             return
 
-        default_sets = ["hud_normal", "res_bold", "default_100"]
+        default_sets = ["hud_normal", "res_bold"]
         for name in default_sets:
             path = self._resolve_path(str(Path("templates") / name))
             self.template_store.load(name, path)
@@ -129,7 +129,7 @@ class BackendApp:
         if template_config and template_config.path:
             path = Path(template_config.path)
         else:
-            name = template_config.setName if template_config and template_config.setName else "default_100"
+            name = template_config.setName if template_config and template_config.setName else "hud_normal"
             path = Path("templates") / name
         return self._resolve_path(str(path))
 
