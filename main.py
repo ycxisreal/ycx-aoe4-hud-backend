@@ -3,6 +3,7 @@ AoE4 HUD 后端入口。
 """
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -23,6 +24,7 @@ from ws.server import WsServer
 class BackendApp:
     # 初始化后端应用
     def __init__(self) -> None:
+        self.logger = logging.getLogger("backend.app")
         self.state = BackendState(state="starting")
         self.context = RuntimeContext()
         self.template_store = TemplateStore()
@@ -42,6 +44,7 @@ class BackendApp:
         self.state.update("ready")
         await self.ws.start(self.handle_message)
         await self._publish_status()
+        self.logger.info("backend ready, ws listening")
         await asyncio.Future()
 
     # 处理前端消息
@@ -49,7 +52,9 @@ class BackendApp:
         try:
             msg = WsMessage.parse(data)
         except Exception:
+            self.logger.warning("ws message parse failed")
             return
+        self.logger.info("ws message received: %s", msg.type)
         if msg.type == "CONFIG_SET":
             await self._handle_config(msg.payload)
         elif msg.type in ("START", "RECOG_START", "OCR_START"):
@@ -66,6 +71,7 @@ class BackendApp:
         except Exception as exc:
             self.state.update("error", message="config_invalid", details={"error": str(exc)})
             await self._publish_status()
+            self.logger.error("config invalid: %s", str(exc))
             return
         self.context.config = config
         self.capture_manager.initialize(display_id=config.screen.displayId)
@@ -74,29 +80,34 @@ class BackendApp:
         if not self.template_store.is_ready():
             self.state.update("error", message="templates_missing", details={"path": self._template_path(config)})
             await self._publish_status()
+            self.logger.error("templates missing, path=%s", self._template_path(config))
             return
         if config.tts:
             self.tts.configure(rate=config.tts.rate, volume=config.tts.volume)
         self.state.update("ready")
         await self._publish_status()
+        self.logger.info("config set ok, rois=%d", len(config.rois))
 
     # 处理开始识别
     async def _handle_start(self) -> None:
         if self.context.config is None:
             self.state.update("error", message="config_missing")
             await self._publish_status()
+            self.logger.error("start failed: config missing")
             return
         self.context.running = True
         if self.capture_task is None or self.capture_task.done():
             self.capture_task = asyncio.create_task(self._capture_loop())
         self.state.update("running")
         await self._publish_status()
+        self.logger.info("recognition started")
 
     # 处理停止识别
     async def _handle_stop(self) -> None:
         self.context.running = False
         self.state.update("stopped")
         await self._publish_status()
+        self.logger.info("recognition stopped")
 
     # 发布状态
     async def _publish_status(self) -> None:
@@ -110,18 +121,21 @@ class BackendApp:
             for name, raw_path in template_config.sets.items():
                 path = self._resolve_path(raw_path)
                 self.template_store.load(name, path)
+                self.logger.info("template set loaded: %s -> %s", name, path)
             return
 
         if template_config and (template_config.path or template_config.setName):
             path = self._template_path(config)
             set_name = template_config.setName if template_config and template_config.setName else "hud_normal"
             self.template_store.load(set_name, path)
+            self.logger.info("template set loaded: %s -> %s", set_name, path)
             return
 
         default_sets = ["hud_normal", "res_bold"]
         for name in default_sets:
             path = self._resolve_path(str(Path("templates") / name))
             self.template_store.load(name, path)
+            self.logger.info("template set loaded: %s -> %s", name, path)
 
     # 计算模板路径
     def _template_path(self, config: ConfigSetPayload) -> str:
@@ -168,6 +182,7 @@ class BackendApp:
                 if self.fail_count >= 10:
                     self.context.quality_ok = False
                     self.context.quality_reason = "capture_failed"
+                    self.logger.warning("capture failed %d times", self.fail_count)
                 await asyncio.sleep(1.0 / hz)
                 continue
 
@@ -205,6 +220,7 @@ class BackendApp:
                 "cooldownMs": alert.get("cooldownMs", 0),
             }
             await self.ws.broadcast(make_alert(alert_payload))
+            self.logger.info("alert sent: %s", alert_payload.get("id"))
 
     # 调试帧保存
     def _dump_debug_frames(self, frame, ts: int) -> None:

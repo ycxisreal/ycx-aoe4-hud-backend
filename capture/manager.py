@@ -8,11 +8,13 @@ import numpy as np
 
 from capture.dxcam_provider import DxcamProvider
 from capture.mss_provider import MssProvider
+from utils.logging import get_logger
 
 
 class CaptureManager:
     # 初始化捕获管理器
     def __init__(self) -> None:
+        self.logger = get_logger("backend.capture")
         self.dxcam = DxcamProvider()
         self.mss = MssProvider()
         self.provider: Optional[str] = None
@@ -21,11 +23,14 @@ class CaptureManager:
     def initialize(self, display_id: Optional[int] = None) -> None:
         if self.dxcam.initialize(display_id=display_id):
             self.provider = "dxcam"
+            self.logger.info("capture provider: dxcam")
             return
         if self.mss.initialize(display_id=display_id):
             self.provider = "mss"
+            self.logger.info("capture provider: mss")
             return
         self.provider = None
+        self.logger.error("capture provider init failed")
 
     # 抓取一帧并返回 BGR 图像
     def capture(self) -> Optional[np.ndarray]:

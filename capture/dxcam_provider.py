@@ -6,10 +6,13 @@ from typing import Optional
 
 import numpy as np
 
+from utils.logging import get_logger
+
 
 class DxcamProvider:
     # 初始化捕获器
     def __init__(self) -> None:
+        self.logger = get_logger("backend.capture.dxcam")
         self.camera = None
 
     # 初始化捕获设备
@@ -18,6 +21,7 @@ class DxcamProvider:
             import dxcam
         except Exception:
             self.camera = None
+            self.logger.warning("dxcam import failed")
             return False
 
         try:
@@ -25,6 +29,7 @@ class DxcamProvider:
             return self.camera is not None
         except Exception:
             self.camera = None
+            self.logger.error("dxcam create failed")
             return False
 
     # 抓取当前帧
@@ -34,7 +39,9 @@ class DxcamProvider:
         try:
             frame = self.camera.grab()
             if frame is None:
+                self.logger.debug("dxcam grab returned None")
                 return None
             return frame
         except Exception:
+            self.logger.warning("dxcam grab failed")
             return None
