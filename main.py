@@ -274,34 +274,15 @@ class BackendApp:
             return
         from utils.debug_dump import dump_image
 
-        save_dir = "debug"
-        save_every = 5
-        self.debug_frame_index += 1
-        if save_every > 1 and (self.debug_frame_index % save_every) != 0:
+        if getattr(self, "_roi_dumped_once", False):
             return
-        kinds = {"res_stone", "timer"}
+        save_dir = "debug"
         for roi in self.context.config.rois:
-            if kinds and roi.kind not in kinds:
-                continue
             cropped = _crop_frame(frame, roi.rect)
             filename = f"{roi.kind}_{roi.id}_{ts}.png"
             dump_image(cropped, Path(save_dir) / filename)
-        self._dump_debug_binary(frame, ts, kinds, save_dir)
+        self._roi_dumped_once = True
 
-    # 保存二值化 ROI
-    def _dump_debug_binary(self, frame, ts: int, kinds, save_dir: str) -> None:
-        if self.context.config is None:
-            return
-        from recog.preprocess import preprocess_roi
-        from utils.debug_dump import dump_image
-
-        for roi in self.context.config.rois:
-            if kinds and roi.kind not in kinds:
-                continue
-            cropped = _crop_frame(frame, roi.rect)
-            binary, _ = preprocess_roi(cropped, roi.kind)
-            filename = f"{roi.kind}_{roi.id}_{ts}_bin.png"
-            dump_image(binary, Path(save_dir) / filename)
 
 
 # 字段映射到协议结构
