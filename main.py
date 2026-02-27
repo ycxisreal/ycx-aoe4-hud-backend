@@ -36,15 +36,12 @@ class BackendApp:
         self.ws = WsServer(state=self.state)
         self.capture_task: Optional[asyncio.Task] = None
         self.fail_count = 0
-        self.last_timer_debug_ts = 0
-        self.debug_frame_index = 0
 
     # 启动应用
     async def run(self) -> None:
         self.state.update("ready")
         await self.ws.start(self.handle_message)
         await self._publish_status()
-        self.logger.info("后端已就绪，WS 已监听")
         await asyncio.Future()
 
     # 处理前端消息
@@ -52,9 +49,7 @@ class BackendApp:
         try:
             msg = WsMessage.parse(data)
         except Exception:
-            self.logger.warning("WS 消息解析失败")
             return
-        self.logger.info("收到 WS 消息: %s", msg.type)
         if msg.type == "CONFIG_SET":
             await self._handle_config(msg.payload)
         elif msg.type in ("START", "RECOG_START", "OCR_START"):
@@ -75,15 +70,11 @@ class BackendApp:
             return
         self.context.config = config
         self._apply_dpi_scale(config)
-        self.logger.info("配置 ROI 数量: %d", len(config.rois))
-        if config.rois:
-            self.logger.info("ROI 示例: %s", config.rois[0].dict())
         self.capture_manager.initialize(display_id=config.screen.displayId)
         if config.tts:
             self.tts.configure(rate=config.tts.rate, volume=config.tts.volume)
         self.state.update("ready")
         await self._publish_status()
-        self.logger.info("配置下发完成，ROI 数量: %d", len(config.rois))
 
     # 处理开始识别
     async def _handle_start(self) -> None:
@@ -95,17 +86,14 @@ class BackendApp:
         self.context.running = True
         if self.capture_task is None or self.capture_task.done():
             self.capture_task = asyncio.create_task(self._capture_loop())
-            self.logger.info("识别循环任务已创建")
         self.state.update("running")
         await self._publish_status()
-        self.logger.info("识别已启动")
 
     # 处理停止识别
     async def _handle_stop(self) -> None:
         self.context.running = False
         self.state.update("stopped")
         await self._publish_status()
-        self.logger.info("识别已停止")
 
     # 发布状态
     async def _publish_status(self) -> None:
@@ -135,14 +123,12 @@ class BackendApp:
 
     # 捕获循环
     async def _capture_loop(self) -> None:
-        self.logger.info("识别循环开始运行")
         while True:
             try:
                 if not self.context.running or self.context.config is None:
                     await asyncio.sleep(0.2)
                     continue
                 if not self.context.config.recognition.enabled:
-                    self.logger.warning("识别未启用：recognition.enabled=false")
                     await asyncio.sleep(0.5)
                     continue
 
@@ -154,29 +140,22 @@ class BackendApp:
                     if self.fail_count >= 10:
                         self.context.quality_ok = False
                         self.context.quality_reason = "capture_failed"
-                        self.logger.warning("抓屏连续失败次数: %d", self.fail_count)
                     await asyncio.sleep(1.0 / hz)
                     continue
 
                 self.fail_count = 0
-            results = self.pipeline.process(frame, self.context.config.rois)
+                results = self.pipeline.process(frame, self.context.config.rois)
                 fields = _map_fields(results)
                 stable_fields = _smooth_fields(self.smoother, fields)
                 quality = self.validator.validate(stable_fields)
                 self.context.quality_ok = quality["ok"]
                 self.context.quality_reason = quality["reason"]
-                self._log_timer_invalid(results, stable_fields, ts, quality["reason"])
 
                 data_payload = {
                     "fields": stable_fields,
                     "frameTs": ts,
                     "quality": {"ok": self.context.quality_ok, "reason": self.context.quality_reason},
                 }
-                self.logger.info(
-                    "已发送识别数据，quality=%s, reason=%s",
-                    self.context.quality_ok,
-                    self.context.quality_reason,
-                )
                 await self.ws.broadcast(make_data(data_payload))
                 await self._handle_alerts(stable_fields, ts)
                 await asyncio.sleep(1.0 / hz)
@@ -200,23 +179,7 @@ class BackendApp:
                 "cooldownMs": alert.get("cooldownMs", 0),
             }
             await self.ws.broadcast(make_alert(alert_payload))
-            self.logger.info("提醒事件已发送: %s", alert_payload.get("id"))
 
-    # 记录计时器非法的识别结果（节流）
-    def _log_timer_invalid(
-        self, raw_fields: Dict[str, Any], stable_fields: Dict[str, Any], ts: int, reason: Optional[str]
-    ) -> None:
-        if reason != "timer_invalid":
-            return
-        if ts - self.last_timer_debug_ts < 2000:
-            return
-        self.last_timer_debug_ts = ts
-        raw_timer = raw_fields.get("timer")
-        stable_timer = stable_fields.get("timer")
-        box_count = None
-        if isinstance(raw_timer, dict):
-            box_count = raw_timer.get("boxCount")
-        self.logger.info("计时器识别异常 raw=%s stable=%s boxCount=%s", raw_timer, stable_timer, box_count)
 
 
 

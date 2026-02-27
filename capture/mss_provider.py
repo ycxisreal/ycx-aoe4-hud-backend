@@ -22,14 +22,12 @@ class MssProvider:
             import mss
         except Exception:
             self.session = None
-            self.logger.warning("mss 导入失败")
             return False
 
         try:
             self.session = mss.mss()
             monitors = self.session.monitors
             if not monitors:
-                self.logger.error("mss 未找到显示器")
                 return False
             if display_id is None:
                 self.monitor = monitors[0]
@@ -39,7 +37,6 @@ class MssProvider:
             return True
         except Exception:
             self.session = None
-            self.logger.error("mss 初始化失败")
             return False
 
     # 抓取当前帧
@@ -50,9 +47,7 @@ class MssProvider:
             frame = self.session.grab(self.monitor)
             image = np.array(frame)
             if image.size == 0:
-                self.logger.debug("mss 抓屏返回空帧")
                 return None
             return image[:, :, :3]
         except Exception:
-            self.logger.warning("mss 抓屏失败")
             return None

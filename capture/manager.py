@@ -23,11 +23,9 @@ class CaptureManager:
     def initialize(self, display_id: Optional[int] = None) -> None:
         if self.dxcam.initialize(display_id=display_id):
             self.provider = "dxcam"
-            self.logger.info("捕获提供者: dxcam")
             return
         if self.mss.initialize(display_id=display_id):
             self.provider = "mss"
-            self.logger.info("捕获提供者: mss")
             return
         self.provider = None
         self.logger.error("捕获提供者初始化失败")
