@@ -17,6 +17,7 @@ from recog.templates import TemplateStore
 from recog.validation import FieldValidator
 from tts.speaker import TtsSpeaker
 from utils.logging import setup_logging
+from utils.dpi import get_system_dpi_scale
 from ws.protocol import make_alert, make_data, make_pong, make_status
 from ws.server import WsServer
 
@@ -38,6 +39,8 @@ class BackendApp:
         self.ws = WsServer(state=self.state)
         self.capture_task: Optional[asyncio.Task] = None
         self.fail_count = 0
+        self.last_timer_debug_ts = 0
+        self.debug_frame_index = 0
 
     # 启动应用
     async def run(self) -> None:
@@ -52,7 +55,7 @@ class BackendApp:
         try:
             msg = WsMessage.parse(data)
         except Exception:
-        self.logger.warning("WS 消息解析失败")
+            self.logger.warning("WS 消息解析失败")
             return
         self.logger.info("收到 WS 消息: %s", msg.type)
         if msg.type == "CONFIG_SET":
@@ -74,6 +77,7 @@ class BackendApp:
             self.logger.error("配置解析失败: %s", str(exc))
             return
         self.context.config = config
+        self._apply_dpi_scale(config)
         self.logger.info("配置 ROI 数量: %d", len(config.rois))
         if config.rois:
             self.logger.info("ROI 示例: %s", config.rois[0].dict())
@@ -167,6 +171,23 @@ class BackendApp:
             "default": "hud_normal",
         }
 
+    # 根据系统缩放修正 ROI
+    def _apply_dpi_scale(self, config: ConfigSetPayload) -> None:
+        scale = config.screen.dpiScale
+        if not scale or scale <= 0:
+            scale = get_system_dpi_scale()
+            config.screen.dpiScale = scale
+        if abs(scale - 1.0) < 0.01:
+            return
+        for roi in config.rois:
+            roi.rect.x = int(round(roi.rect.x * scale))
+            roi.rect.y = int(round(roi.rect.y * scale))
+            roi.rect.w = int(round(roi.rect.w * scale))
+            roi.rect.h = int(round(roi.rect.h * scale))
+        config.screen.width = int(round(config.screen.width * scale))
+        config.screen.height = int(round(config.screen.height * scale))
+        self.logger.info("已应用系统缩放比例: %.2f", scale)
+
     # 捕获循环
     async def _capture_loop(self) -> None:
         while True:
@@ -197,6 +218,7 @@ class BackendApp:
             quality = self.validator.validate(stable_fields)
             self.context.quality_ok = quality["ok"]
             self.context.quality_reason = quality["reason"]
+            self._log_timer_invalid(results, stable_fields, ts, quality["reason"])
 
             data_payload = {
                 "fields": stable_fields,
@@ -230,19 +252,56 @@ class BackendApp:
             await self.ws.broadcast(make_alert(alert_payload))
             self.logger.info("提醒事件已发送: %s", alert_payload.get("id"))
 
+    # 记录计时器非法的识别结果（节流）
+    def _log_timer_invalid(
+        self, raw_fields: Dict[str, Any], stable_fields: Dict[str, Any], ts: int, reason: Optional[str]
+    ) -> None:
+        if reason != "timer_invalid":
+            return
+        if ts - self.last_timer_debug_ts < 2000:
+            return
+        self.last_timer_debug_ts = ts
+        raw_timer = raw_fields.get("timer")
+        stable_timer = stable_fields.get("timer")
+        box_count = None
+        if isinstance(raw_timer, dict):
+            box_count = raw_timer.get("boxCount")
+        self.logger.info("计时器识别异常 raw=%s stable=%s boxCount=%s", raw_timer, stable_timer, box_count)
+
     # 调试帧保存
     def _dump_debug_frames(self, frame, ts: int) -> None:
-        if self.context.config is None or self.context.config.debug is None:
-            return
-        if not self.context.config.debug.saveRoiFrames:
+        if self.context.config is None:
             return
         from utils.debug_dump import dump_image
 
-        save_dir = self.context.config.debug.saveDir or "debug"
+        save_dir = "debug"
+        save_every = 5
+        self.debug_frame_index += 1
+        if save_every > 1 and (self.debug_frame_index % save_every) != 0:
+            return
+        kinds = {"res_stone", "timer"}
         for roi in self.context.config.rois:
-            cropped = _crop(frame, roi.rect)
+            if kinds and roi.kind not in kinds:
+                continue
+            cropped = _crop_frame(frame, roi.rect)
             filename = f"{roi.kind}_{roi.id}_{ts}.png"
             dump_image(cropped, Path(save_dir) / filename)
+        self._dump_debug_binary(frame, ts, kinds, save_dir)
+
+    # 保存二值化 ROI
+    def _dump_debug_binary(self, frame, ts: int, kinds, save_dir: str) -> None:
+        if self.context.config is None:
+            return
+        from recog.preprocess import preprocess_roi
+        from utils.debug_dump import dump_image
+
+        for roi in self.context.config.rois:
+            if kinds and roi.kind not in kinds:
+                continue
+            cropped = _crop_frame(frame, roi.rect)
+            binary, _ = preprocess_roi(cropped, roi.kind)
+            filename = f"{roi.kind}_{roi.id}_{ts}_bin.png"
+            dump_image(binary, Path(save_dir) / filename)
 
 
 # 字段映射到协议结构
@@ -250,16 +309,32 @@ def _map_fields(results: Dict[str, Any]) -> Dict[str, Any]:
     fields: Dict[str, Any] = {"resources": {}, "gatherers": {}}
     for kind, value in results.items():
         if kind == "timer":
-            fields["timer"] = value
+            fields["timer"] = _strip_meta(value)
         elif kind == "idle":
-            fields["idleVillagers"] = value
+            fields["idleVillagers"] = _strip_meta(value)
         elif kind.startswith("res_"):
             name = kind.replace("res_", "")
-            fields["resources"][name] = value
+            fields["resources"][name] = _strip_meta(value)
         elif kind.startswith("gather_"):
             name = kind.replace("gather_", "")
-            fields["gatherers"][name] = value
+            fields["gatherers"][name] = _strip_meta(value)
     return fields
+
+
+# 去除识别元信息
+def _strip_meta(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {"value": value.get("value"), "conf": value.get("conf", 0.0)}
+
+
+# 裁剪 ROI 区域
+def _crop_frame(frame, rect):
+    x = max(0, rect.x)
+    y = max(0, rect.y)
+    w = max(1, rect.w)
+    h = max(1, rect.h)
+    return frame[y : y + h, x : x + w]
 
 
 # 稳定化字段
