@@ -24,3 +24,18 @@ def make_status(state: str, message: str | None = None, details: Dict[str, Any] 
     if details is not None:
         payload["details"] = details
     return make_message("BACKEND_STATUS", payload)
+
+
+# 构建数据消息
+def make_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return make_message("DATA", payload)
+
+
+# 构建提醒事件
+def make_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return make_message("ALERT_EVENT", payload)
+
+
+# 构建 PONG
+def make_pong(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return make_message("PONG", payload)

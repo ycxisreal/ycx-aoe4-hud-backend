@@ -5,6 +5,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from core.config import ConfigSetPayload
+
 
 @dataclass
 class BackendState:
@@ -18,3 +20,14 @@ class BackendState:
         self.message = message
         if details is not None:
             self.details = details
+
+
+@dataclass
+class RuntimeContext:
+    # 初始化运行上下文
+    def __init__(self) -> None:
+        self.config: Optional[ConfigSetPayload] = None
+        self.running: bool = False
+        self.last_frame_ts: Optional[int] = None
+        self.quality_ok: bool = True
+        self.quality_reason: Optional[str] = None
