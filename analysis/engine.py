@@ -11,7 +11,6 @@ class RuleEngine:
     # 初始化规则引擎
     def __init__(self) -> None:
         self.rules = [IdleVillagerRule()]
-        self.last_global_ts: int = 0
         self.cooldowns: Dict[str, int] = {}
 
     # 执行所有规则
@@ -24,8 +23,6 @@ class RuleEngine:
     # 冷却与节流处理
     def _apply_cooldowns(self, alerts: List[Dict[str, Any]], ts: int) -> List[Dict[str, Any]]:
         filtered: List[Dict[str, Any]] = []
-        if ts - self.last_global_ts < 3000:
-            return filtered
         for alert in alerts:
             alert_id = alert.get("id")
             cooldown = int(alert.get("cooldownMs", 0))
@@ -33,5 +30,4 @@ class RuleEngine:
                 continue
             filtered.append(alert)
             self.cooldowns[alert_id] = ts
-            self.last_global_ts = ts
         return filtered
