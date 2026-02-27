@@ -70,6 +70,7 @@ class BackendApp:
         self.context.config = config
         self.capture_manager.initialize(display_id=config.screen.displayId)
         self._load_templates(config)
+        self.pipeline.update_kind_map(self._build_kind_map(config))
         if not self.template_store.is_ready():
             self.state.update("error", message="templates_missing", details={"path": self._template_path(config)})
             await self._publish_status()
@@ -105,9 +106,22 @@ class BackendApp:
     # 加载模板集
     def _load_templates(self, config: ConfigSetPayload) -> None:
         template_config = config.templates
-        path = self._template_path(config)
-        set_name = template_config.setName if template_config and template_config.setName else "default_100"
-        self.template_store.load(set_name, path)
+        if template_config and template_config.sets:
+            for name, raw_path in template_config.sets.items():
+                path = self._resolve_path(raw_path)
+                self.template_store.load(name, path)
+            return
+
+        if template_config and (template_config.path or template_config.setName):
+            path = self._template_path(config)
+            set_name = template_config.setName if template_config and template_config.setName else "default_100"
+            self.template_store.load(set_name, path)
+            return
+
+        default_sets = ["hud_normal", "res_bold", "default_100"]
+        for name in default_sets:
+            path = self._resolve_path(str(Path("templates") / name))
+            self.template_store.load(name, path)
 
     # 计算模板路径
     def _template_path(self, config: ConfigSetPayload) -> str:
@@ -117,9 +131,24 @@ class BackendApp:
         else:
             name = template_config.setName if template_config and template_config.setName else "default_100"
             path = Path("templates") / name
+        return self._resolve_path(str(path))
+
+    # 解析为绝对路径
+    def _resolve_path(self, raw_path: str) -> str:
+        path = Path(raw_path)
         if not path.is_absolute():
             path = Path.cwd() / path
         return str(path)
+
+    # 构建模板映射
+    def _build_kind_map(self, config: ConfigSetPayload) -> Dict[str, str]:
+        template_config = config.templates
+        if template_config and template_config.kindMap:
+            return template_config.kindMap
+        return {
+            "res_*": "res_bold",
+            "default": "hud_normal",
+        }
 
     # 捕获循环
     async def _capture_loop(self) -> None:

@@ -16,6 +16,11 @@ class RecognizePipeline:
     # 初始化流水线
     def __init__(self, template_store: TemplateStore) -> None:
         self.template_store = template_store
+        self.kind_map: Dict[str, str] = {}
+
+    # 更新模板映射
+    def update_kind_map(self, kind_map: Dict[str, str]) -> None:
+        self.kind_map = kind_map
 
     # 处理一帧并返回识别结果
     def process(self, frame: np.ndarray, rois) -> Dict[str, Any]:
@@ -31,7 +36,9 @@ class RecognizePipeline:
             binary, _ = preprocess_roi(cropped, roi.kind)
             boxes = segment_chars(binary, roi.kind)
             chars = [_extract_char(binary, box) for box in boxes]
-            classified = [classify_char(c, self.template_store.current) for c in chars]
+            template_name = _select_template_name(roi.kind, self.kind_map)
+            template_set = self.template_store.get(template_name)
+            classified = [classify_char(c, template_set) for c in chars]
             parsed = _parse_classified(classified, roi.kind)
             results[roi.kind] = parsed
         return results
@@ -89,3 +96,13 @@ def _valid_timer(text: str) -> bool:
     if len(parts[1]) != 2:
         return False
     return True
+
+
+# 根据 kind 选择模板集
+def _select_template_name(kind: str, kind_map: Dict[str, str]) -> Optional[str]:
+    if kind in kind_map:
+        return kind_map[kind]
+    for pattern, name in kind_map.items():
+        if pattern.endswith("*") and kind.startswith(pattern[:-1]):
+            return name
+    return kind_map.get("default")

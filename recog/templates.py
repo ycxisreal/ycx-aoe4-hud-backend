@@ -21,6 +21,7 @@ class TemplateStore:
     # 初始化模板仓库
     def __init__(self) -> None:
         self.current: Optional[TemplateSet] = None
+        self.sets: Dict[str, TemplateSet] = {}
 
     # 加载模板集
     def load(self, name: str, path: str, size: Tuple[int, int] = (32, 32)) -> None:
@@ -34,11 +35,19 @@ class TemplateStore:
             if image is None:
                 continue
             templates[key] = normalize_char(image, size)
-        self.current = TemplateSet(name=name, templates=templates, size=size)
+        template_set = TemplateSet(name=name, templates=templates, size=size)
+        self.current = template_set
+        self.sets[name] = template_set
 
     # 判断模板集是否可用
     def is_ready(self) -> bool:
         return self.current is not None and len(self.current.templates) > 0
+
+    # 获取指定模板集
+    def get(self, name: Optional[str]) -> Optional[TemplateSet]:
+        if name is None:
+            return self.current
+        return self.sets.get(name)
 
 
 # 归一化字符图像

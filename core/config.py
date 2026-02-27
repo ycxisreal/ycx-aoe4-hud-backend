@@ -2,7 +2,7 @@
 配置模型定义。
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,8 @@ class TemplatesConfig(BaseModel):
     setName: Optional[str] = None
     path: Optional[str] = None
     autoScale: Optional[bool] = None
+    sets: Optional[Dict[str, str]] = None
+    kindMap: Optional[Dict[str, str]] = None
 
 
 class DebugConfig(BaseModel):
