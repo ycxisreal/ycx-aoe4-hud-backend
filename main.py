@@ -172,6 +172,7 @@ class BackendApp:
                 continue
 
             self.fail_count = 0
+            self._dump_debug_frames(frame, ts)
             results = self.pipeline.process(frame, self.context.config.rois)
             fields = _map_fields(results)
             stable_fields = _smooth_fields(self.smoother, fields)
@@ -204,6 +205,20 @@ class BackendApp:
                 "cooldownMs": alert.get("cooldownMs", 0),
             }
             await self.ws.broadcast(make_alert(alert_payload))
+
+    # 调试帧保存
+    def _dump_debug_frames(self, frame, ts: int) -> None:
+        if self.context.config is None or self.context.config.debug is None:
+            return
+        if not self.context.config.debug.saveRoiFrames:
+            return
+        from utils.debug_dump import dump_image
+
+        save_dir = self.context.config.debug.saveDir or "debug"
+        for roi in self.context.config.rois:
+            cropped = _crop(frame, roi.rect)
+            filename = f"{roi.kind}_{roi.id}_{ts}.png"
+            dump_image(cropped, Path(save_dir) / filename)
 
 
 # 字段映射到协议结构

@@ -24,7 +24,7 @@ class TemplateStore:
         self.sets: Dict[str, TemplateSet] = {}
 
     # 加载模板集
-    def load(self, name: str, path: str, size: Tuple[int, int] = (32, 32)) -> None:
+    def load(self, name: str, path: str, size: Tuple[int, int] = (32, 32)) -> bool:
         template_dir = Path(path)
         templates: Dict[str, np.ndarray] = {}
         for key in [str(i) for i in range(10)] + ["colon"]:
@@ -35,13 +35,19 @@ class TemplateStore:
             if image is None:
                 continue
             templates[key] = normalize_char(image, size)
+        if not templates:
+            return False
         template_set = TemplateSet(name=name, templates=templates, size=size)
-        self.current = template_set
         self.sets[name] = template_set
+        if self.current is None:
+            self.current = template_set
+        return True
 
     # 判断模板集是否可用
     def is_ready(self) -> bool:
-        return self.current is not None and len(self.current.templates) > 0
+        return any(len(item.templates) > 0 for item in self.sets.values()) or (
+            self.current is not None and len(self.current.templates) > 0
+        )
 
     # 获取指定模板集
     def get(self, name: Optional[str]) -> Optional[TemplateSet]:
