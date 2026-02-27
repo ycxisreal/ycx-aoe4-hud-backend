@@ -71,3 +71,8 @@ class WsMessage(BaseModel):
     version: int = 1
     ts: int
     payload: dict
+
+    # 解析消息字典
+    @staticmethod
+    def parse(data: dict) -> "WsMessage":
+        return WsMessage(**data)
