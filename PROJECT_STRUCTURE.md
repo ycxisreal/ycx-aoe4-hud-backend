@@ -39,6 +39,8 @@ aoe4-hud/
     logging.py
     debug_dump.py
     dpi.py
+  tools/
+    rule_verify.py
   doc/
     后端初步项目文档.md
     后端接口文档.md
@@ -108,6 +110,11 @@ WebSocket 通信模块，包含：
 - `logging.py`：日志初始化
 - `debug_dump.py`：调试输出与图像保存
 - `dpi.py`：系统缩放读取
+
+### `tools/`
+
+工具脚本目录，包含：
+- `rule_verify.py`：规则验证工具（离线验证规则触发与冷却）
 
 ### `doc/`
 

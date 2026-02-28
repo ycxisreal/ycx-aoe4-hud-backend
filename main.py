@@ -171,6 +171,13 @@ class BackendApp:
             if self.context.config and self.context.config.tts and self.context.config.tts.enabled:
                 self.tts.speak(alert.get("text", ""))
                 spoken = True
+            self.logger.info(
+                "规则命中: id=%s level=%s spoken=%s text=%s",
+                alert.get("id"),
+                alert.get("level", "info"),
+                spoken,
+                alert.get("text", ""),
+            )
             alert_payload = {
                 "id": alert.get("id"),
                 "level": alert.get("level", "info"),
