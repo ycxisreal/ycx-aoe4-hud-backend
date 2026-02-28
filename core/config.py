@@ -2,7 +2,7 @@
 配置模型定义。
 """
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -41,8 +41,9 @@ class RecognitionConfig(BaseModel):
 
 class TtsConfig(BaseModel):
     enabled: bool = True
-    rate: Optional[int] = None
-    volume: Optional[float] = None
+    rate: Optional[Union[int, str]] = None
+    volume: Optional[Union[float, str]] = None
+    voice: Optional[str] = None
 
 
 class ConfigSetPayload(BaseModel):

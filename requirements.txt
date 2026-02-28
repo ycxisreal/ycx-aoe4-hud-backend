@@ -4,5 +4,5 @@ dxcam
 mss
 websockets
 pydantic
-pyttsx3
+edge-tts
 pytesseract

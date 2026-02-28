@@ -27,7 +27,8 @@ class BackendApp:
         self.state = BackendState(state="starting")
         self.context = RuntimeContext()
         self.pipeline = RecognizePipeline()
-        self.smoother = FieldSmoother(window_size=7)
+        # 数字字段保留轻量平滑；timer 走实时值，不参与多数投票
+        self.smoother = FieldSmoother(window_size=3)
         self.validator = FieldValidator()
         self.rule_engine = RuleEngine()
         self.capture_manager = CaptureManager()
@@ -72,7 +73,7 @@ class BackendApp:
         self._apply_dpi_scale(config)
         self.capture_manager.initialize(display_id=config.screen.displayId)
         if config.tts:
-            self.tts.configure(rate=config.tts.rate, volume=config.tts.volume)
+            self.tts.configure(rate=config.tts.rate, volume=config.tts.volume, voice=config.tts.voice)
         self.state.update("ready")
         await self._publish_status()
 
@@ -169,8 +170,7 @@ class BackendApp:
         for alert in alerts:
             spoken = False
             if self.context.config and self.context.config.tts and self.context.config.tts.enabled:
-                self.tts.speak(alert.get("text", ""))
-                spoken = True
+                spoken = self.tts.speak(alert.get("text", ""))
             self.logger.info(
                 "规则命中: id=%s level=%s spoken=%s text=%s",
                 alert.get("id"),
@@ -221,9 +221,12 @@ def _strip_meta(value: Any) -> Any:
 def _smooth_fields(smoother: FieldSmoother, fields: Dict[str, Any]) -> Dict[str, Any]:
     stable: Dict[str, Any] = {"resources": {}, "gatherers": {}}
     if "timer" in fields:
-        value = fields["timer"].get("value") if fields["timer"] else None
-        stable_value = smoother.push("timer", value)
-        stable["timer"] = {"value": stable_value, "conf": fields["timer"].get("conf", 0.0)}
+        # timer 使用当前帧结果，避免多数投票导致时间显示滞后
+        timer_item = fields["timer"] or {}
+        stable["timer"] = {
+            "value": timer_item.get("value"),
+            "conf": timer_item.get("conf", 0.0),
+        }
 
     if "idleVillagers" in fields:
         idle = fields["idleVillagers"]

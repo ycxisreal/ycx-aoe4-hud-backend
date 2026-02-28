@@ -64,7 +64,7 @@ aoe4-hud/
 - 屏幕捕获（`dxcam`、`mss`）
 - 通信（`websockets`）
 - 配置模型（`pydantic`）
-- 语音播放（`pyttsx3`）
+- 语音播放（`edge-tts`）
 
 ### `core/`
 
@@ -97,12 +97,12 @@ WebSocket 通信模块，包含：
 
 规则引擎模块，包含：
 - `engine.py`：规则执行与冷却/节流
-- `rules.py`：规则集合（闲置村民规则）
+- `rules.py`：规则集合（闲置、资源结构、时间窗与时间点提醒）
 
 ### `tts/`
 
 语音播放模块，包含：
-- `speaker.py`：pyttsx3 播报线程与队列
+- `speaker.py`：edge-tts 播报线程与队列（含 Windows MCI 播放）
 
 ### `utils/`
 

@@ -4,13 +4,13 @@
 
 from typing import Any, Dict, List
 
-from analysis.rules import IdleVillagerRule
+from analysis.rules import build_rules
 
 
 class RuleEngine:
     # 初始化规则引擎
     def __init__(self) -> None:
-        self.rules = [IdleVillagerRule()]
+        self.rules = build_rules()
         self.cooldowns: Dict[str, int] = {}
 
     # 执行所有规则
