@@ -81,19 +81,26 @@ class StatefulRule:
 
 class TimePointRule:
     # 初始化时间点单次提醒规则
-    def __init__(self, rule_id: str, target_seconds: int, text: str) -> None:
+    def __init__(self, rule_id: str, target_seconds: int, text: str, hold_ms: int = 2000) -> None:
         self.rule_id = rule_id
         self.target_seconds = target_seconds
         self.text = text
+        self.hold_ms = hold_ms
         self.fired = False
+        self.hold_start_ts: Optional[int] = None
 
     # 评估规则
     def evaluate(self, fields: Dict[str, Any], ts: int) -> List[Dict[str, Any]]:
-        del ts
         game_seconds = _get_game_seconds(fields)
         # 计时器无效或回退到阈值以下时，视为进入新对局并重置标记
         if game_seconds is None or game_seconds < self.target_seconds:
             self.fired = False
+            self.hold_start_ts = None
+            return []
+        if self.hold_start_ts is None:
+            self.hold_start_ts = ts
+            return []
+        if ts - self.hold_start_ts < self.hold_ms:
             return []
         if self.fired:
             return []
@@ -115,7 +122,7 @@ class IdleVillagerRule(StatefulRule):
             AlertConfig(
                 rule_id="idle_villager",
                 text="有闲置村民",
-                hold_ms=0,
+                hold_ms=2000,
                 cooldown_base_ms=15000,
                 cooldown_accum_ms=0,
             )
