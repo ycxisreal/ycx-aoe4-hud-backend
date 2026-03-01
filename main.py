@@ -88,12 +88,15 @@ class BackendApp:
         if self.capture_task is None or self.capture_task.done():
             self.capture_task = asyncio.create_task(self._capture_loop())
         self.state.update("running")
+        hz = self.context.config.recognition.hz
+        self.logger.info("识别已启动: hz=%s", hz)
         await self._publish_status()
 
     # 处理停止识别
     async def _handle_stop(self) -> None:
         self.context.running = False
         self.state.update("stopped")
+        self.logger.info("识别已停止")
         await self._publish_status()
 
     # 发布状态
