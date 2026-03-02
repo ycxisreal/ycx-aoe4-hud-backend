@@ -22,7 +22,7 @@
 
 - Windows 10/11
 - Python 3.10 及以上
-- 需要在本地安装 Tesseract OCR，且 `tesseract` 在系统 `PATH` 中可访问，**如果未安装则无法进行识别！**
+- 需要在本地安装 Tesseract OCR
 - 安装完毕可以自检：
 ```powershell
 tesseract --version
