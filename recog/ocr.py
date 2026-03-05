@@ -35,6 +35,9 @@ def ocr_read(image: np.ndarray, kind: str) -> Tuple[Optional[str], float]:
     if kind == "timer":
         whitelist = "0123456789:"
         psm = 7
+    elif kind == "population":
+        whitelist = "0123456789/"
+        psm = 7
     else:
         whitelist = "0123456789"
         psm = 7

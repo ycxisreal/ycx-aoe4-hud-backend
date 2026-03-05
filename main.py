@@ -202,6 +202,8 @@ def _map_fields(results: Dict[str, Any]) -> Dict[str, Any]:
             fields["timer"] = _strip_meta(value)
         elif kind == "idle":
             fields["idleVillagers"] = _strip_meta(value)
+        elif kind == "population":
+            fields["population"] = _strip_meta(value)
         elif kind.startswith("res_"):
             name = kind.replace("res_", "")
             fields["resources"][name] = _strip_meta(value)
@@ -240,6 +242,19 @@ def _smooth_fields(smoother: FieldSmoother, fields: Dict[str, Any]) -> Dict[str,
             "conf": idle.get("conf", 0.0),
         }
 
+    if "population" in fields:
+        # 人口字段使用文本多数投票，再拆分 current/capacity
+        population = fields["population"]
+        value = population.get("value") if population else None
+        stable_text = smoother.push("population", str(value) if value is not None else None)
+        current, capacity = _parse_population(stable_text)
+        stable["population"] = {
+            "value": stable_text,
+            "current": current,
+            "capacity": capacity,
+            "conf": population.get("conf", 0.0),
+        }
+
     for key, item in fields.get("resources", {}).items():
         value = item.get("value") if item else None
         stable_value = smoother.push(f"resources.{key}", str(value) if value is not None else None)
@@ -257,6 +272,20 @@ def _smooth_fields(smoother: FieldSmoother, fields: Dict[str, Any]) -> Dict[str,
         }
 
     return stable
+
+
+# 解析人口文本（如 10/20）
+def _parse_population(value: Optional[str]) -> tuple[Optional[int], Optional[int]]:
+    if not value or "/" not in value:
+        return None, None
+    parts = value.split("/")
+    if len(parts) != 2:
+        return None, None
+    left = parts[0].strip()
+    right = parts[1].strip()
+    if not left.isdigit() or not right.isdigit():
+        return None, None
+    return int(left), int(right)
 
 
 # 主程序入口

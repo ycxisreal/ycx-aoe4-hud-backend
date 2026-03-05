@@ -48,6 +48,10 @@ def _parse_ocr(text: Optional[str], conf: float, kind: str) -> Dict[str, Any]:
         if _valid_timer(text):
             return {"value": text, "conf": conf}
         return {"value": None, "conf": 0.0}
+    if kind == "population":
+        if _valid_population(text):
+            return {"value": text, "conf": conf}
+        return {"value": None, "conf": 0.0}
     if text.isdigit():
         return {"value": int(text), "conf": conf}
     return {"value": None, "conf": 0.0}
@@ -66,3 +70,16 @@ def _valid_timer(text: str) -> bool:
         return False
     return True
 
+
+# 校验人口格式（如 10/20）
+def _valid_population(text: str) -> bool:
+    if "/" not in text:
+        return False
+    parts = text.split("/")
+    if len(parts) != 2:
+        return False
+    if not (parts[0].isdigit() and parts[1].isdigit()):
+        return False
+    if len(parts[0]) < 1 or len(parts[1]) < 1:
+        return False
+    return True

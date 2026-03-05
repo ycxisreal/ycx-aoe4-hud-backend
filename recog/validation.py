@@ -27,6 +27,18 @@ class FieldValidator:
             else:
                 self.last_timer_seconds = seconds
 
+        population = fields.get("population")
+        if population:
+            current = population.get("current")
+            capacity = population.get("capacity")
+            if (current is None) != (capacity is None):
+                ok = False
+                reason = "population_invalid"
+            elif current is not None and capacity is not None:
+                if current < 0 or capacity <= 0 or current > capacity:
+                    ok = False
+                    reason = "population_invalid"
+
         numeric_fields = _flatten_numeric(fields)
         for key, value in numeric_fields.items():
             if value < 0:
