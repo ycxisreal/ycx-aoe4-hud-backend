@@ -130,6 +130,9 @@ class IdleVillagerRule(StatefulRule):
 
     # 判断条件是否满足
     def _is_satisfied(self, fields: Dict[str, Any]) -> bool:
+        # 仅在计时器有效时允许闲置提醒，避免未进对局时误触发
+        if _get_game_seconds(fields) is None:
+            return False
         idle_v = _get_idle(fields)
         return idle_v >= 1
 
