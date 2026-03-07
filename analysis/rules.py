@@ -238,7 +238,7 @@ class FoodLowEarlyRule(StatefulRule):
         super().__init__(
             AlertConfig(
                 rule_id="food_low_early",
-                text="食物获取量偏少",
+                text="食物数量偏少",
                 hold_ms=15000,
                 cooldown_base_ms=90000,
                 cooldown_accum_ms=0,
@@ -259,7 +259,7 @@ class GoldLowEarlyRule(StatefulRule):
         super().__init__(
             AlertConfig(
                 rule_id="gold_low_early",
-                text="黄金获取量偏少",
+                text="黄金数量偏少",
                 hold_ms=15000,
                 cooldown_base_ms=90000,
                 cooldown_accum_ms=0,
@@ -391,6 +391,56 @@ class WoodOverflowLateRule(StatefulRule):
         return wood > max(food, gold) * 1.5
 
 
+class PopulationNearCapRule(StatefulRule):
+    # 初始化人口预提醒规则
+    def __init__(self) -> None:
+        super().__init__(
+            AlertConfig(
+                rule_id="population_near_cap",
+                text="请注意人口",
+                hold_ms=3000,
+                cooldown_base_ms=40000,
+                cooldown_accum_ms=0,
+            )
+        )
+
+    # 判断条件是否满足
+    def _is_satisfied(self, fields: Dict[str, Any]) -> bool:
+        game_seconds = _get_game_seconds(fields)
+        if game_seconds is None or game_seconds < 2 * 60:
+            return False
+        current = _get_population_current(fields)
+        capacity = _get_population_capacity(fields)
+        if capacity <= 0 or capacity == 200:
+            return False
+        if current <= 0:
+            return False
+        gap = capacity - current
+        return current != capacity and 0 < gap <= 3
+
+
+class PopulationFullRule(StatefulRule):
+    # 初始化人口已满提醒规则
+    def __init__(self) -> None:
+        super().__init__(
+            AlertConfig(
+                rule_id="population_full",
+                text="人口已满",
+                hold_ms=2000,
+                cooldown_base_ms=15000,
+                cooldown_accum_ms=0,
+            )
+        )
+
+    # 判断条件是否满足
+    def _is_satisfied(self, fields: Dict[str, Any]) -> bool:
+        current = _get_population_current(fields)
+        capacity = _get_population_capacity(fields)
+        if capacity <= 0 or capacity == 200:
+            return False
+        return current == capacity
+
+
 # 构建完整规则集合
 def build_rules() -> List[Any]:
     return [
@@ -406,6 +456,8 @@ def build_rules() -> List[Any]:
         FoodWorkerRatioRule(),
         GoldWorkerRatioRule(),
         WoodOverflowLateRule(),
+        PopulationNearCapRule(),
+        PopulationFullRule(),
         TimePointRule("timeline_1200", 12 * 60, "建议检查对面二金位置"),
         TimePointRule("timeline_1500", 15 * 60, "建议检查资源配比情况"),
     ]
@@ -431,6 +483,22 @@ def _get_idle(fields: Dict[str, Any]) -> int:
     if not isinstance(idle, dict):
         return 0
     return _to_int(idle.get("value"))
+
+
+# 读取当前人口值
+def _get_population_current(fields: Dict[str, Any]) -> int:
+    population = fields.get("population")
+    if not isinstance(population, dict):
+        return 0
+    return _to_int(population.get("current"))
+
+
+# 读取人口上限值
+def _get_population_capacity(fields: Dict[str, Any]) -> int:
+    population = fields.get("population")
+    if not isinstance(population, dict):
+        return 0
+    return _to_int(population.get("capacity"))
 
 
 # 计算总村民数
