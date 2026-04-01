@@ -1,6 +1,7 @@
 # AoE4 HUD 后端
 
 这是一个aoe4HUD依赖的本地提醒后端。  
+前端：https://github.com/ycxisreal/ycx-aoe4-hud-frontend  
 启动后端并连接前端配置后，会自动读取 HUD 信息，按规则进行语音提醒，帮助你更快发现“闲置村民、资源配比失衡、关键时间点”等局内问题。
 
 ## 这个项目可以用来干嘛
