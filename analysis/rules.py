@@ -115,6 +115,52 @@ class TimePointRule:
         ]
 
 
+class SuggestWallRule:
+    """
+    拉墙建议规则：
+    1. 在 10:00、13:00 两个时间点各触发一次；
+    2. 每个时间点都需要连续满足 2 秒；
+    3. 计时器无效或回退到阈值以下时，重置对应时间点的触发状态，供下一局复用。
+    """
+
+    # 初始化拉墙建议规则
+    def __init__(self) -> None:
+        self.rule_id = "suggest_wall"
+        self.text = "建议考虑适当拉墙"
+        self.hold_ms = 2000
+        self.targets = (10 * 60, 13 * 60)
+        self.fired: Dict[int, bool] = {target: False for target in self.targets}
+        self.hold_start_ts: Dict[int, Optional[int]] = {target: None for target in self.targets}
+
+    # 评估拉墙建议规则
+    def evaluate(self, fields: Dict[str, Any], ts: int) -> List[Dict[str, Any]]:
+        game_seconds = _get_game_seconds(fields)
+        alerts: List[Dict[str, Any]] = []
+        for target in self.targets:
+            # 对每个时间点独立维护触发状态，便于新对局或时间回退时单独复位
+            if game_seconds is None or game_seconds < target:
+                self.fired[target] = False
+                self.hold_start_ts[target] = None
+                continue
+            if self.fired[target]:
+                continue
+            if self.hold_start_ts[target] is None:
+                self.hold_start_ts[target] = ts
+                continue
+            if ts - self.hold_start_ts[target] < self.hold_ms:
+                continue
+            self.fired[target] = True
+            alerts.append(
+                {
+                    "id": f"{self.rule_id}_{target}",
+                    "level": LEVEL_WARN,
+                    "text": self.text,
+                    "cooldownMs": 0,
+                }
+            )
+        return alerts
+
+
 class IdleVillagerRule(StatefulRule):
     # 初始化闲置村民规则
     def __init__(self) -> None:
@@ -458,6 +504,7 @@ def build_rules() -> List[Any]:
         WoodOverflowLateRule(),
         PopulationNearCapRule(),
         PopulationFullRule(),
+        SuggestWallRule(),
         TimePointRule("timeline_1200", 12 * 60, "建议检查对面二金位置"),
         TimePointRule("timeline_1500", 15 * 60, "建议检查资源配比情况"),
     ]
