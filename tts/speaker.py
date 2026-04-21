@@ -13,6 +13,9 @@ from queue import Empty, Queue
 from typing import Optional, Union
 
 
+DEFAULT_EDGE_PERCENT = "+0%"
+
+
 class TtsSpeaker:
     # 初始化语音播报器
     def __init__(self) -> None:
@@ -20,8 +23,8 @@ class TtsSpeaker:
         self.thread: Optional[threading.Thread] = None
         self.running = False
         self.voice = "zh-CN-XiaoxiaoNeural"
-        self.edge_rate = "+0%"
-        self.edge_volume = "+0%"
+        self.edge_rate = DEFAULT_EDGE_PERCENT
+        self.edge_volume = DEFAULT_EDGE_PERCENT
         self.logger = logging.getLogger("backend.tts")
 
     # 启动播报线程
@@ -121,14 +124,9 @@ class TtsSpeaker:
 # 将前端 rate 转成 edge-tts 的百分比字符串
 def _to_edge_rate(rate: Optional[Union[int, str]]) -> str:
     if rate is None:
-        return "+0%"
+        return DEFAULT_EDGE_PERCENT
     if isinstance(rate, str):
-        value = rate.strip()
-        if not value:
-            return "+0%"
-        if value.endswith("%"):
-            return value if value.startswith(("+", "-")) else f"+{value}"
-        return "+0%"
+        return _normalize_edge_percent(rate)
 
     # 兼容旧参数：pyttsx3 语速常用 150，映射为 edge-tts 百分比
     percent = int(round((int(rate) - 150) / 150 * 100))
@@ -139,18 +137,23 @@ def _to_edge_rate(rate: Optional[Union[int, str]]) -> str:
 # 将前端 volume 转成 edge-tts 的百分比字符串
 def _to_edge_volume(volume: Optional[Union[float, str]]) -> str:
     if volume is None:
-        return "+0%"
+        return DEFAULT_EDGE_PERCENT
     if isinstance(volume, str):
-        value = volume.strip()
-        if not value:
-            return "+0%"
-        if value.endswith("%"):
-            return value if value.startswith(("+", "-")) else f"+{value}"
-        return "+0%"
+        return _normalize_edge_percent(volume)
 
     percent = int(round((float(volume) - 1.0) * 100))
     percent = max(-100, min(100, percent))
     return f"{percent:+d}%"
+
+
+# 规范化 edge-tts 百分比字符串
+def _normalize_edge_percent(value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        return DEFAULT_EDGE_PERCENT
+    if cleaned.endswith("%"):
+        return cleaned if cleaned.startswith(("+", "-")) else f"+{cleaned}"
+    return DEFAULT_EDGE_PERCENT
 
 
 # 通过 Windows MCI 同步播放 mp3
