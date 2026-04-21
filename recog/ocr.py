@@ -8,6 +8,10 @@ import cv2
 import numpy as np
 
 
+OCR_SCALE = 2
+OCR_PSM = 7
+
+
 # OCR 读取 ROI 文本
 def ocr_read(image: np.ndarray, kind: str) -> Tuple[Optional[str], float]:
     """
@@ -28,21 +32,11 @@ def ocr_read(image: np.ndarray, kind: str) -> Tuple[Optional[str], float]:
         binary = cv2.bitwise_not(binary)
     binary = cv2.bitwise_not(binary)
 
-    scale = 2
     h, w = binary.shape[:2]
-    resized = cv2.resize(binary, (w * scale, h * scale), interpolation=cv2.INTER_CUBIC)
+    resized = cv2.resize(binary, (w * OCR_SCALE, h * OCR_SCALE), interpolation=cv2.INTER_CUBIC)
 
-    if kind == "timer":
-        whitelist = "0123456789:"
-        psm = 7
-    elif kind == "population":
-        whitelist = "0123456789/"
-        psm = 7
-    else:
-        whitelist = "0123456789"
-        psm = 7
-
-    config = f"--oem 3 --psm {psm} -c tessedit_char_whitelist={whitelist}"
+    whitelist = _get_whitelist(kind)
+    config = f"--oem 3 --psm {OCR_PSM} -c tessedit_char_whitelist={whitelist}"
     text = pytesseract.image_to_string(resized, config=config)
     if text is None:
         return None, 0.0
@@ -50,6 +44,15 @@ def ocr_read(image: np.ndarray, kind: str) -> Tuple[Optional[str], float]:
     if not cleaned:
         return None, 0.0
     return cleaned, 1.0
+
+
+# 根据识别区域类型选择 OCR 字符白名单
+def _get_whitelist(kind: str) -> str:
+    if kind == "timer":
+        return "0123456789:"
+    if kind == "population":
+        return "0123456789/"
+    return "0123456789"
 
 
 # 清洗 OCR 文本
